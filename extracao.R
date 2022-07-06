@@ -5,10 +5,6 @@ set.seed(1)
 
 # Pacotes -----------------------------------------------------------------
 library(tidyverse)
-# install.packages("remotes")
-# remotes::install_github("georgevbsantiago/qsacnpj") - https://github.com/georgevbsantiago/qsacnpj
-library(qsacnpj)
-library(data.table)
 library(basedosdados)
 #devtools::install_github("tidyverse/dbplyr")
 library(dbplyr)
@@ -24,10 +20,16 @@ path_bases <- paste0(getwd(),"/bases/")
 # Setando conta
 basedosdados::set_billing_id(key_get("project_billing", "basedosdados"))
 
-# Carregar os dados do código de 7 dígitos do município
+# Carregar os dados 
 base <- tibble(
   query = 
-  c("SELECT  
+  c("SELECT 
+        id_municipio,
+        id_uf,
+        sigla_uf
+    FROM 
+      `basedosdados.br_bd_diretorios_brasil.municipio`",
+  "SELECT  
         ano,
         id_municipio,
         grupo_idade,
@@ -76,26 +78,26 @@ base <- tibble(
     FROM
       obitos
     GROUP BY
-      ano,
+      ano,  
       id_municipio,
-      grupo_idade")) %>% #Ano está como string
+      grupo_idade")) %>%
   mutate(resultados = map(query, read_sql))
 
+# Unindo as bases -------------------------------------------------------
+base_ca <- merge(base$resultados[[1]], base$resultados[[2]], by = c("id_municipio"), all = T)
+base_ca <- merge(base_ca, base$resultados[[3]], by = c("ano", "id_municipio", "grupo_idade"), all = T)
 
-# Transformando dados -----------------------------------------------------
-base_ca <- merge(base$resultados[[1]], base$resultados[[2]], by = c("ano", "id_municipio", "grupo_idade"), all = T)
-names(base_ca) <- c("ano", "id_municipio", "grupo_idade", "populacao", "obito")
-base_ca$ano <- as.factor(base_ca$ano) 
+# Ajuste inicial -----------------------------------------------------
+names(base_ca) <- c("ano", "id_municipio", "grupo_idade", "id_uf", "sigla_uf", "populacao", "obito")
 base_ca$populacao <- as.numeric(base_ca$populacao) 
 base_ca$obito <- as.numeric(base_ca$obito) 
 base_ca$obito <- ifelse(is.na(base_ca$obito), 0, base_ca$obito)
 
 write.csv(base_ca, paste0(path_bases, "base_ca.csv"), row.names = F)
-# Calculando a taxa de mortalidade ----------------------------------------
-# Taxa de mortalidade bruta
-tx_bruta <- base_ca %>%
-  group_by(ano, id_municipio) %>%
-  dplyr::summarise(obito = sum(obito, na.rm = T),
-                   populacao = sum(populacao, na.rm = T))
-tx_bruta$tx_obito <- tx_bruta$obito/tx_bruta$populacao * 100000
+
+
+
+
+
+
 
